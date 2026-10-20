@@ -100,6 +100,17 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Drops the `ParserRange`s recorded for the inner attributes in `attrs`, when they are not
+    /// collected. Only the `collect_tokens` call that returns these attributes would use them, and
+    /// the parser is cloned for each snapshot, so keeping them would make that ever slower.
+    fn forget_inner_attr_parser_ranges(&mut self, attrs: &[Attribute]) {
+        for attr in attrs {
+            if attr.style == ast::AttrStyle::Inner {
+                self.capture_state.inner_attr_parser_ranges.remove(&attr.id);
+            }
+        }
+    }
+
     /// Parses code with `f`. If appropriate, it records the tokens (in
     /// `LazyAttrTokenStream` form) that were parsed in the result, accessible
     /// via the `HasTokens` trait.
@@ -237,6 +248,7 @@ impl<'a> Parser<'a> {
             && matches!(self.capture_state.capturing, Capturing::Yes)
             && has_cfg_or_cfg_attr(&ret_attrs);
         if !definite_capture_mode && !ret_can_hold_tokens {
+            self.forget_inner_attr_parser_ranges(&ret_attrs);
             return Ok(ret);
         }
 
@@ -262,6 +274,7 @@ impl<'a> Parser<'a> {
             //   for those attributes, because they're builtin.)
             || definite_capture_mode;
         if !needs_collection {
+            self.forget_inner_attr_parser_ranges(&ret_attrs);
             return Ok(ret);
         }
 
